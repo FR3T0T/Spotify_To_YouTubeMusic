@@ -1,0 +1,10 @@
+{
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+  "Accept": "*/*",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Content-Type": "application/json",
+  "X-Goog-AuthUser": "0",
+  "x-origin": "https://music.youtube.com",
+  "Authorization": "SAPISIDHASH your_auth_hash_here SAPISID1PHASH your_auth_hash_here SAPISID3PHASH your_auth_hash_here",
+  "Cookie": "HSID=your_hsid_value; SSID=your_ssid_value; APISID=your_apisid_value; SAPISID=your_sapisid_value; __Secure-1PAPISID=your_secure_1papisid_value; __Secure-3PAPISID=your_secure_3papisid_value; SID=your_sid_value; __Secure-1PSID=your_secure_1psid_value; __Secure-3PSID=your_secure_3psid_value; [additional_cookies]"
+}
