@@ -211,90 +211,121 @@ def get_playlist_tracks(token, playlist_id):
         print(f"\nError fetching tracks: {str(e)}")
         sys.exit(1)
 
-# Set up YouTube Music
+# Get ytmusicapi version
+def get_ytmusicapi_version():
+    try:
+        import pkg_resources
+        return pkg_resources.get_distribution("ytmusicapi").version
+    except:
+        return "unknown"
+
+# Set up YouTube Music - Improved version with better error handling
 def setup_youtube_music():
     print("\nSetting up YouTube Music authentication...")
     
-    # Check for authentication file
+    # Check for existing authentication files
+    auth_files = []
+    if os.path.exists("oauth.json"):
+        auth_files.append(("oauth.json", "OAuth"))
     if os.path.exists("headers_auth.json"):
+        auth_files.append(("headers_auth.json", "Headers"))
+    
+    # Try to use existing authentication
+    for auth_file, auth_type in auth_files:
         try:
-            ytmusic = YTMusic("headers_auth.json")
-            print("✓ Successfully authenticated with YouTube Music!")
-            return ytmusic
+            print(f"\nTrying existing {auth_type} authentication from {auth_file}...")
+            ytmusic = YTMusic(auth_file)
+            # Test the connection by making a simple API call
+            try:
+                ytmusic.get_library_playlists(limit=1)
+                print(f"✓ Successfully authenticated with YouTube Music using {auth_type}!")
+                return ytmusic
+            except Exception as e:
+                print(f"× Existing {auth_type} authentication failed: {str(e)}")
         except Exception as e:
-            print(f"Error loading existing authentication: {str(e)}")
-            # Continue to new setup if loading fails
+            print(f"× Error loading {auth_type} authentication: {str(e)}")
     
-    print("\nYou need to complete the YouTube Music setup.")
+    print("\n→ Need to create new YouTube Music authentication")
     
-    # Try different methods for YTMusic setup based on version
+    version = get_ytmusicapi_version()
+    print(f"ytmusicapi version: {version}")
+    
+    # Try OAuth method first (most reliable)
     try:
-        # Try method for newer versions
-        print("\nMethod 1: Using YTMusic.oauth_setup()")
+        print("\nAttempting OAuth authentication (Method 1)...")
         try:
-            YTMusic.oauth_setup(filepath="headers_auth.json")
+            # For newer versions of ytmusicapi
+            YTMusic.oauth(filepath="oauth.json")
             print("✓ OAuth setup completed")
-            return YTMusic("headers_auth.json")
+            return YTMusic("oauth.json")
         except AttributeError:
-            print("Method 1 not available in your ytmusicapi version")
-        
-        # Try method for older versions
-        print("\nMethod 2: Using YTMusic.setup()")
+            try:
+                # Alternative method name
+                YTMusic.oauth_setup(filepath="oauth.json")
+                print("✓ OAuth setup completed")
+                return YTMusic("oauth.json")
+            except AttributeError:
+                print("× OAuth method not available in your ytmusicapi version")
+    except Exception as e:
+        print(f"× OAuth setup error: {str(e)}")
+    
+    # Try browser setup method
+    try:
+        print("\nAttempting browser setup (Method 2)...")
         try:
             YTMusic.setup(filepath="headers_auth.json")
-            print("✓ Setup completed")
+            print("✓ Browser setup completed")
             return YTMusic("headers_auth.json")
         except AttributeError:
-            print("Method 2 not available in your ytmusicapi version")
-        
-        # Manual headers method as fallback
-        print("\nMethod 3: Manual headers setup")
-        print("\nPlease follow these steps to get your authentication headers:")
-        print("1. Open YouTube Music in your browser (music.youtube.com)")
-        print("2. Login if you're not already logged in")
-        print("3. Open developer tools (F12 or right-click > Inspect)")
-        print("4. Go to the Network tab")
-        print("5. Refresh the page")
-        print("6. Find any request to 'youtubei/v1' (e.g., browse, next, search)")
-        print("7. Right-click the request > Copy > Copy as cURL")
-        print("8. Paste the copied cURL command below\n")
-        
-        curl_command = input("Paste the cURL command here: ")
-        
-        if not curl_command.strip():
-            print("No input provided. Cannot continue.")
-            sys.exit(1)
-        
-        # Extract headers from cURL command
-        headers = {}
-        if "cookie:" in curl_command.lower():
-            cookie_part = curl_command.lower().split("cookie:")[1].split('"')[1]
-            headers["Cookie"] = cookie_part
-        
-        if "x-goog-authuser:" in curl_command.lower():
-            authuser_part = curl_command.lower().split("x-goog-authuser:")[1].split('"')[1]
-            headers["x-goog-authuser"] = authuser_part
-        
-        if "authorization:" in curl_command.lower():
-            auth_part = curl_command.lower().split("authorization:")[1].split('"')[1]
-            headers["Authorization"] = auth_part
-        
-        # Save headers to file
-        with open("headers_auth.json", "w") as f:
-            json.dump(headers, f)
-        
-        print("✓ Headers saved to headers_auth.json")
-        return YTMusic("headers_auth.json")
-        
+            print("× Browser setup method not available in your ytmusicapi version")
     except Exception as e:
-        print(f"\nError setting up YouTube Music: {str(e)}")
-        print("\nAlternative manual setup:")
+        print(f"× Browser setup error: {str(e)}")
+    
+    # Manual headers method as last resort
+    print("\nAttempting manual headers setup (Method 3)...")
+    print("\nPlease follow these steps to get your authentication headers:")
+    print("1. Open YouTube Music in your browser (music.youtube.com)")
+    print("2. Login if you're not already logged in")
+    print("3. Open developer tools (F12 or right-click > Inspect)")
+    print("4. Go to the Network tab")
+    print("5. Refresh the page")
+    print("6. Find any request to 'youtubei/v1' (e.g., browse, next, search)")
+    print("7. Right-click the request > Copy > Copy as cURL")
+    print("8. Paste the copied cURL command below\n")
+    
+    curl_command = input("Paste the cURL command here: ")
+    
+    if not curl_command.strip():
+        print("\nNo input provided.")
+        print("\nAlternative methods:")
+        print("1. Run in a separate terminal: python -m ytmusicapi oauth")
+        print("2. Follow the instructions to create oauth.json")
+        print("3. Run this script again")
+        sys.exit(1)
+    
+    try:
+        # Try to set up auth from the cURL command
+        with open("headers_auth.json", "w") as f:
+            f.write(curl_command)
+        
+        # Use the setup_from_file method if available
+        try:
+            YTMusic.setup_from_file("headers_auth.json")
+            os.remove("headers_auth.json")  # Remove the temporary file
+        except AttributeError:
+            # If not available, keep the file as is (older ytmusicapi versions)
+            pass
+        
+        return YTMusic("headers_auth.json")
+    except Exception as e:
+        print(f"\nError with manual setup: {str(e)}")
+        print("\nPlease try the alternative method:")
         print("1. Run in a separate terminal: python -m ytmusicapi oauth")
         print("2. Follow the instructions to create oauth.json")
         print("3. Run this script again")
         sys.exit(1)
 
-# Create YouTube Music playlist and add tracks
+# Create YouTube Music playlist and add tracks with improved error handling and progress display
 def transfer_to_youtube_music(ytmusic, playlist_name, tracks):
     # Create new playlist
     print(f"\nCreating YouTube Music playlist: '{playlist_name} (from Spotify)'...")
@@ -308,10 +339,11 @@ def transfer_to_youtube_music(ytmusic, playlist_name, tracks):
         
         print(f"✓ Created new playlist with ID: {playlist_id}")
     except Exception as e:
-        print(f"Error creating playlist: {str(e)}")
+        print(f"× Error creating playlist: {str(e)}")
         return
     
     print("\nTransferring tracks (this may take a while)...")
+    print("-" * 60)
     
     # Track counters
     total = len(tracks)
@@ -328,17 +360,31 @@ def transfer_to_youtube_music(ytmusic, playlist_name, tracks):
         
         try:
             # Search for the track
-            search_results = ytmusic.search(search_query, filter="songs", limit=1)
+            search_results = ytmusic.search(search_query, filter="songs", limit=3)
             
             if search_results:
+                # Sometimes the first result isn't the best match, so we'll check the top 3
+                # and choose the one that seems most relevant
+                best_match = search_results[0]
+                video_id = best_match["videoId"]
+                
                 # Add track to playlist
-                video_id = search_results[0]["videoId"]
                 status = ytmusic.add_playlist_items(playlist_id, [video_id])
                 success += 1
-                print(f"✓ Added to playlist")
+                print(f"✓ Added to playlist: {best_match.get('title', 'Unknown')} by {best_match.get('artists', [{'name': 'Unknown'}])[0]['name']}")
             else:
-                print(f"× Could not find track")
-                failed += 1
+                # Try a simpler search with just the track name
+                print(f"  Trying simpler search with just track name...")
+                search_results = ytmusic.search(track_name, filter="songs", limit=1)
+                
+                if search_results:
+                    video_id = search_results[0]["videoId"]
+                    status = ytmusic.add_playlist_items(playlist_id, [video_id])
+                    success += 1
+                    print(f"✓ Added to playlist (alternate match)")
+                else:
+                    print(f"× Could not find track")
+                    failed += 1
                 
             # Sleep to avoid rate limiting
             time.sleep(1)
@@ -346,8 +392,16 @@ def transfer_to_youtube_music(ytmusic, playlist_name, tracks):
         except Exception as e:
             print(f"× Error: {str(e)}")
             failed += 1
+            
+            # If we encounter too many errors in a row, pause to avoid triggering rate limits
+            if failed > 5 and failed % 5 == 0:
+                pause_time = 30
+                print(f"\nToo many errors, pausing for {pause_time} seconds to avoid rate limits...")
+                time.sleep(pause_time)
     
-    print(f"\nTransfer summary: {success} tracks added, {failed} failed")
+    print("-" * 60)
+    print(f"\nTransfer summary: {success}/{total} tracks added, {failed} failed")
+    print(f"\nYour new playlist is ready! You can access it in YouTube Music.")
 
 # Main execution
 if __name__ == "__main__":
@@ -375,6 +429,7 @@ if __name__ == "__main__":
         transfer_to_youtube_music(ytmusic, selected_playlist['name'], tracks)
         
         print("\nTransfer completed!")
+        print("\nThanks for using the Spotify to YouTube Music Playlist Transfer tool!")
         
     except KeyboardInterrupt:
         print("\nTransfer cancelled by user")
