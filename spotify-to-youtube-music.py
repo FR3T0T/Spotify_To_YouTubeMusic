@@ -18,12 +18,12 @@ except ImportError:
     sys.exit(1)
 
 print("=" * 60)
-print("Simplified Spotify to YouTube Music Playlist Transfer")
+print("Spotify to YouTube Music Playlist Transfer")
 print("=" * 60)
 
 # Spotify API credentials
-SPOTIFY_CLIENT_ID = '8033620ee23a4b2d953541864e034a7a'
-SPOTIFY_CLIENT_SECRET = 'be42e5607bc54d63b1ff72123e316311'
+SPOTIFY_CLIENT_ID = 'SPOTIFY_CLIENT_ID'
+SPOTIFY_CLIENT_SECRET = 'SPOTIFY_CLIENT_SECRET'
 
 # OAuth setup
 REDIRECT_PORT = 8888
@@ -201,22 +201,31 @@ def get_playlist_tracks(token, playlist_id):
         print(f"\nError fetching tracks: {str(e)}")
         sys.exit(1)
 
-# Direct YouTube Music setup that uses our working auth file
+# Initialize YouTube Music with auth file
 def setup_youtube_music():
-    print("\nInitializing YouTube Music with existing auth file...")
+    print("\nInitializing YouTube Music with auth file...")
     try:
+        # Check if headers_auth.json exists
+        if not os.path.exists("headers_auth.json"):
+            print("× Error: headers_auth.json file not found.")
+            print("Please run the authentication helper first:")
+            print("python youtube_auth_helper.py")
+            sys.exit(1)
+            
         ytmusic = YTMusic("headers_auth.json")
         
-        # Test the connection with a simple search to verify it works
+        # Test the connection with a simple search
         search_results = ytmusic.search("test", filter="songs", limit=1)
         if search_results:
             print("✓ YouTube Music authentication successful!")
             return ytmusic
         else:
-            print("× YouTube Music connection test returned no results")
+            print("× YouTube Music connection returned no results")
             sys.exit(1)
     except Exception as e:
         print(f"× YouTube Music authentication failed: {str(e)}")
+        print("\nPlease run the authentication helper:")
+        print("python youtube_auth_helper.py")
         sys.exit(1)
 
 # Create YouTube Music playlist and add tracks
@@ -234,6 +243,8 @@ def transfer_to_youtube_music(ytmusic, playlist_name, tracks):
         print(f"✓ Created new playlist with ID: {playlist_id}")
     except Exception as e:
         print(f"× Error creating playlist: {str(e)}")
+        print("\nPlease run the authentication helper to get full access:")
+        print("python youtube_auth_helper.py")
         return
     
     print("\nTransferring tracks (this may take a while)...")
@@ -257,8 +268,7 @@ def transfer_to_youtube_music(ytmusic, playlist_name, tracks):
             search_results = ytmusic.search(search_query, filter="songs", limit=3)
             
             if search_results:
-                # Sometimes the first result isn't the best match, so we'll check the top 3
-                # and choose the one that seems most relevant
+                # Take the first result as the best match
                 best_match = search_results[0]
                 video_id = best_match["videoId"]
                 
@@ -316,7 +326,7 @@ if __name__ == "__main__":
         # Get tracks from the selected playlist
         tracks = get_playlist_tracks(spotify_token, selected_playlist['id'])
         
-        # Authenticate with YouTube Music (using our working method)
+        # Authenticate with YouTube Music
         ytmusic = setup_youtube_music()
         
         # Create YouTube Music playlist and add tracks

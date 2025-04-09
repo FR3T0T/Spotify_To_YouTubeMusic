@@ -2,7 +2,6 @@ import os
 import sys
 import json
 import time
-import subprocess
 
 # Check for ytmusicapi
 try:
@@ -16,50 +15,45 @@ print("YouTube Music Authentication Helper")
 print("=" * 60)
 
 def create_headers_file():
-    """Create a headers_auth.json file with the minimum required fields."""
-    print("\nCreating a simplified authentication file for YouTube Music...")
+    """Create a headers_auth.json file with the required fields."""
+    print("\nCreating an authentication file for YouTube Music...")
     
     # Get required cookie values
     print("\nPlease follow these steps to get your cookies and authorization:")
     print("1. Open YouTube Music in your browser (music.youtube.com)")
     print("2. Make sure you're logged in")
     print("3. Open developer tools (F12 or right-click > Inspect)")
-    print("4. Go to the Application tab")
-    print("5. In the left panel, expand 'Cookies' and select 'https://music.youtube.com'")
-    print("6. Find these specific cookies and copy their values when prompted:")
+    print("4. Go to the Network tab")
+    print("5. Refresh the page")
+    print("6. Find any request to 'browse' or similar YouTube Music API requests")
+    print("7. Click on the request and look in the 'Headers' tab")
     
-    # Essential cookies
-    cookies = {}
+    # Get cookie header
+    print("\nFirst, I need you to copy the entire Cookie header value:")
+    print("1. In the Request Headers section, find 'Cookie:'")
+    print("2. Right-click on the Cookie value and select 'Copy value'")
+    print("3. Paste the ENTIRE cookie string below")
     
-    # Get cookie values
-    cookies['__Secure-3PAPISID'] = input("\nEnter the value of cookie '__Secure-3PAPISID': ").strip()
-    cookies['__Secure-3PSID'] = input("Enter the value of cookie '__Secure-3PSID': ").strip()
+    cookie_value = input("\nPaste the complete Cookie header value: ").strip()
     
     # Get authorization header
-    print("\nNow we need the Authorization header:")
-    print("1. Go to the Network tab in developer tools")
-    print("2. Refresh the page and look for any request to 'browse' or 'next'")
-    print("3. Click on the request and look in the 'Headers' tab")
-    print("4. Find the 'Authorization' header under 'Request Headers'")
-    print("   (It starts with 'SAPISIDHASH' or similar)")
+    print("\nNow I need the Authorization header:")
+    print("1. Still in the Headers tab, find 'Authorization:'")
+    print("2. Copy the entire value (starts with 'SAPISIDHASH')")
     
-    auth_header = input("\nEnter the Authorization header value: ").strip()
+    auth_value = input("\nPaste the complete Authorization header value: ").strip()
     
     # Create the headers object
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
         "Content-Type": "application/json",
-        "Authorization": auth_header,
         "X-Goog-AuthUser": "0",
-        "x-origin": "https://music.youtube.com"
+        "x-origin": "https://music.youtube.com",
+        "Cookie": cookie_value,
+        "Authorization": auth_value
     }
-    
-    # Add the cookie string
-    cookie_str = ""
-    for name, value in cookies.items():
-        cookie_str += f"{name}={value}; "
-    
-    headers["Cookie"] = cookie_str
     
     # Save to file
     with open("headers_auth.json", "w") as f:
@@ -68,49 +62,49 @@ def create_headers_file():
     print("\n✓ Headers saved to headers_auth.json")
     return True
 
-def try_oauth_standalone():
-    """Try the standalone OAuth approach."""
-    print("\nRunning the standalone OAuth setup...")
+def test_auth():
+    """Test if the authentication file works for both read and write operations."""
+    print("\nTesting authentication...")
     
     try:
-        # Prepare the command to run in a new process
-        if os.name == 'nt':  # Windows
-            cmd = ["python", "-m", "ytmusicapi", "oauth"]
-        else:  # Unix/Mac
-            cmd = ["python3", "-m", "ytmusicapi", "oauth"]
+        ytmusic = YTMusic("headers_auth.json")
         
-        # Run the command and capture output
-        process = subprocess.run(cmd, check=True, text=True, capture_output=True)
+        # Test 1: Basic search (read operation)
+        print("\nTest 1: Basic search...")
+        search_results = ytmusic.search("test", filter="songs", limit=1)
         
-        # Check if oauth.json was created
-        if os.path.exists("oauth.json"):
-            print("✓ Successfully created oauth.json!")
-            return True
+        if search_results:
+            print("✓ Search test successful!")
+            print(f"  Found song: {search_results[0].get('title', 'Unknown')}")
         else:
-            print("× OAuth setup ran but oauth.json wasn't created.")
-            print("Output: " + process.stdout)
+            print("× Search test failed: No results returned.")
             return False
-    except subprocess.CalledProcessError as e:
-        print(f"× Error running OAuth setup: {e}")
-        print(f"Output: {e.stdout}")
-        print(f"Error: {e.stderr}")
-        return False
-    except Exception as e:
-        print(f"× Unexpected error: {str(e)}")
-        return False
-
-def test_auth(auth_file):
-    """Test if the authentication file works."""
-    print(f"\nTesting authentication using {auth_file}...")
-    
-    try:
-        ytmusic = YTMusic(auth_file)
         
-        # Try a simple API call
-        print("Making a test API call...")
-        home = ytmusic.get_library_playlists(limit=1)
+        # Test 2: Create a test playlist (write operation)
+        print("\nTest 2: Creating a test playlist...")
+        try:
+            playlist_name = f"Test Playlist {int(time.time())}"
+            playlist_id = ytmusic.create_playlist(
+                title=playlist_name,
+                description="Test playlist for authentication check",
+                privacy_status="PRIVATE"
+            )
+            print(f"✓ Playlist creation test successful!")
+            print(f"  Created playlist with ID: {playlist_id}")
+            
+            # Try to delete the test playlist
+            print("\nCleaning up: Deleting test playlist...")
+            try:
+                ytmusic.delete_playlist(playlist_id)
+                print("✓ Successfully deleted test playlist")
+            except Exception as e:
+                print(f"× Could not delete test playlist: {str(e)}")
         
-        print(f"✓ Authentication successful using {auth_file}!")
+        except Exception as e:
+            print(f"× Playlist creation test failed: {str(e)}")
+            print("\nAuthentication has issues with write operations. You need full permissions.")
+            return False
+            
         return True
     except Exception as e:
         print(f"× Authentication test failed: {str(e)}")
@@ -121,36 +115,27 @@ def main():
     
     print("\nThis script will help you set up authentication for YouTube Music.")
     
-    # Check for existing auth files
-    auth_files = []
-    if os.path.exists("oauth.json"):
-        auth_files.append("oauth.json")
+    # Check for existing auth file
     if os.path.exists("headers_auth.json"):
-        auth_files.append("headers_auth.json")
-    
-    # Test existing auth files
-    for auth_file in auth_files:
-        print(f"\nFound existing authentication file: {auth_file}")
-        if test_auth(auth_file):
-            print(f"\n✓ You can now use {auth_file} with the main script!")
+        print("\nFound existing authentication file: headers_auth.json")
+        print("Testing if it works...")
+        
+        if test_auth():
+            print("\n✓ Existing authentication is working! You can now run the main script.")
             return
         else:
-            print(f"× Existing {auth_file} doesn't work, trying other methods...")
+            print("\n× Existing authentication doesn't work. Let's create a new one.")
     
-    # Try OAuth method first (most reliable)
-    if try_oauth_standalone():
-        if test_auth("oauth.json"):
-            print("\n✓ OAuth authentication is working! You can now run the main script.")
-            return
-    
-    # If OAuth failed, try the manual headers method
-    print("\nTrying manual headers method...")
+    # Create and test new auth file
     if create_headers_file():
-        if test_auth("headers_auth.json"):
-            print("\n✓ Manual authentication is working! You can now run the main script.")
+        if test_auth():
+            print("\n✓ Authentication is working! You can now run the main script.")
             return
+        else:
+            print("\n× Authentication test failed after creating new headers file.")
+            print("Please make sure you copied the correct values and try again.")
     
-    print("\n× All authentication methods failed.")
+    print("\n× Authentication setup failed.")
     print("Please make sure you're properly logged into YouTube Music in your browser")
     print("and that you're following the instructions carefully.")
 
